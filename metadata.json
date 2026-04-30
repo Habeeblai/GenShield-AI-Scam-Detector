@@ -1,0 +1,6 @@
+{
+  "name": "GenShield AI Scam Detector",
+  "description": "AI-powered scam detection on GenLayer using Intelligent Contracts to analyze text, links, and image descriptions for phishing, manipulation, and scams.",
+  "requestFramePermissions": [],
+  "majorCapabilities": []
+}

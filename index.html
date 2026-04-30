@@ -1,0 +1,70 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>GuardLayer AI | GenLayer Scam Detector</title>
+    <script>
+      // Early polyfill for 'global' to prevent TypeError: Cannot set property fetch
+      (function() {
+        const win = window;
+        
+        // Attempt to create a dummy setter on window itself for fetch
+        // This is the cleanest way to stop "Cannot set property fetch of #<Window>"
+        try {
+          const originalFetch = win.fetch;
+          Object.defineProperty(win, 'fetch', {
+            get: function() { return originalFetch; },
+            set: function() { console.warn('Polyfill: Blocked window.fetch override attempt'); },
+            configurable: true
+          });
+        } catch (e) {
+          // If the property is non-configurable, we can't do much on 'window' directly
+          console.warn('Polyfill: Could not define window.fetch setter', e);
+        }
+
+        // This proxy will catch assignments to 'fetch' on the global object
+        win.__app_global = new Proxy(win, {
+          get(target, prop) {
+            if (prop === 'global' || prop === 'globalThis' || prop === '__app_global') return win.__app_global;
+            const val = target[prop];
+            // Binding is necessary for functions like setTimeout or fetch
+            if (typeof val === 'function') return val.bind(target);
+            return val;
+          },
+          set(target, prop, value) {
+            if (prop === 'fetch') {
+              console.warn('Blocked attempt to override fetch');
+              return true;
+            }
+            try {
+              target[prop] = value;
+            } catch (e) {
+              // Ignore errors setting read-only properties on window
+            }
+            return true;
+          },
+          defineProperty(target, prop, descriptor) {
+            if (prop === 'fetch') return true;
+            try {
+              return Object.defineProperty(target, prop, descriptor);
+            } catch (e) {
+              return true;
+            }
+          },
+          has(target, prop) {
+            return prop in target;
+          }
+        });
+
+        // Set global early just in case
+        win.global = win.__app_global;
+      })();
+    </script>
+  </head>
+  <body>
+    <div id="root"></div>
+    <script type="module" src="/src/main.tsx"></script>
+  </body>
+</html>
+
