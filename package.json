@@ -4,8 +4,8 @@
   "version": "0.0.0",
   "type": "module",
   "scripts": {
-    "dev": "tsx api/server.ts",
-    "start": "node api/server.ts",
+    "dev": "tsx api/index.ts",
+    "start": "node api/index.ts",
     "build": "vite build",
     "preview": "vite preview",
     "clean": "rm -rf dist",
