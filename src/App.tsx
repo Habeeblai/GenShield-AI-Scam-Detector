@@ -47,6 +47,7 @@ export default function App() {
   const [error, setError] = useState<string | null>(null);
   const [client, setClient] = useState<any>(null);
   const [isRpcConnected, setIsRpcConnected] = useState<boolean | null>(null);
+  const [rpcErrorCode, setRpcErrorCode] = useState<string | null>(null);
   const [isContractValid, setIsContractValid] = useState<boolean | null>(null);
   const [rpcUrl, setRpcUrl] = useState<string>(GENLAYER_RPC_URL);
   const [contractAddress, setContractAddress] = useState<string>(SCAM_DETECTOR_ADDRESS);
@@ -122,9 +123,16 @@ export default function App() {
 
       const connected = await checkConnectivity();
       setIsRpcConnected(connected);
-    } catch (err) {
+      if (!connected) {
+        setRpcErrorCode('UNREACHABLE');
+      } else {
+        setRpcErrorCode(null);
+      }
+    } catch (err: any) {
       console.error('Failed to init GenLayer client', err);
       setError('Could not initialize GenLayer client. Check your settings.');
+      setIsRpcConnected(false);
+      setRpcErrorCode('INIT_ERROR');
     }
   };
 
@@ -385,7 +393,7 @@ export default function App() {
                     <div className="flex items-center gap-1">
                       <div className={`w-1.5 h-1.5 rounded-full ${isRpcConnected ? 'bg-emerald-500' : 'bg-red-500'}`} />
                       <span className="text-[9px] font-bold text-gray-300 uppercase tracking-wide">
-                        {isRpcConnected ? 'Active' : 'Offline'}
+                        {isRpcConnected ? 'Active' : `Offline${rpcErrorCode ? ` (${rpcErrorCode})` : ''}`}
                       </span>
                     </div>
                   </div>
