@@ -88,12 +88,14 @@ export default function App() {
 
       // Try to "ping" the network with a more robust check
       const checkConnectivity = async () => {
+        console.log(`[Connectivity] Checking ${targetRpc}...`);
         try {
           // Method 1: Try getChainId via the client (direct)
-          await newClient.getChainId();
+          const chainId = await newClient.getChainId();
+          console.log(`[Connectivity] Direct check successful, Chain ID: ${chainId}`);
           return true;
         } catch (rpcErr) {
-          console.warn('RPC getChainId failed, trying server-side proxy...', rpcErr);
+          console.warn('[Connectivity] Direct check failed, trying server-side proxy...', rpcErr);
           try {
             // Method 2: Use our server-side proxy to bypass browser CORS
             const response = await fetch('/api/ping-rpc', {
@@ -102,9 +104,17 @@ export default function App() {
               body: JSON.stringify({ rpcUrl: targetRpc })
             });
             const data = await response.json();
-            return !!data.ok;
+            console.log('[Connectivity] Proxy check result:', data);
+            
+            if (data.ok) {
+              console.log('[Connectivity] Proxy check successful');
+              return true;
+            } else {
+              console.error('[Connectivity] Proxy check reported failure:', data.error || data.status);
+              return false;
+            }
           } catch (proxyErr) {
-            console.error('RPC proxy fallback failed:', proxyErr);
+            console.error('[Connectivity] Proxy check crashed:', proxyErr);
             return false;
           }
         }

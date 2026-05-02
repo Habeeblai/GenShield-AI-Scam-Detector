@@ -74,16 +74,22 @@ app.post("/api/ping-rpc", async (req, res) => {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ jsonrpc: '2.0', method: 'eth_chainId', params: [], id: 1 }),
-      signal: AbortSignal.timeout(5000)
+      signal: AbortSignal.timeout(10000)
     } as any);
+
+    console.log(`[RPC Proxy] Ping to ${rpcUrl} result: ${response.status}`);
 
     if (response.ok) {
       const data = await response.json();
+      console.log(`[RPC Proxy] Ping ${rpcUrl} success data:`, data);
       res.json({ ok: true, data });
     } else {
-      res.json({ ok: false, status: response.status });
+      const errorText = await response.text();
+      console.error(`[RPC Proxy] Ping ${rpcUrl} failed: ${response.status} ${errorText}`);
+      res.json({ ok: false, status: response.status, error: errorText });
     }
   } catch (error: any) {
+    console.error(`[RPC Proxy] Error pinging ${req.body.rpcUrl}:`, error.message);
     res.json({ ok: false, error: error.message });
   }
 });
