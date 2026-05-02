@@ -2,7 +2,6 @@ import React, { useState, useEffect, useRef } from 'react';
 import { createClient, createAccount } from 'genlayer-js';
 import { localnet } from 'genlayer-js/chains';
 import { motion, AnimatePresence } from 'framer-motion';
-import { GoogleGenAI } from "@google/genai";
 import { 
   ShieldAlert, 
   ShieldCheck, 
@@ -34,9 +33,6 @@ const SCAM_DETECTOR_ADDRESS = '0x5C9ed0567FD7204447E0Ad89Fbba6d6620aF3C11';
 // GenLayer RPC configuration
 // Default to localnet, but allow user to override via environment or here
 const GENLAYER_RPC_URL = (import.meta as any).env.VITE_GENLAYER_RPC_URL || localnet.rpcUrls.default.http[0];
-
-// Initialize Gemini AI
-const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY });
 
 export default function App() {
   const [activeTab, setActiveTab] = useState<'text' | 'link' | 'image'>('text');
@@ -88,16 +84,34 @@ export default function App() {
         account: createAccount(),
       });
       
-      // Try to "ping" the network
-      try {
-        await newClient.getChainId();
-        setIsRpcConnected(true);
-      } catch (rpcErr) {
-        console.warn('RPC connection failed:', rpcErr);
-        setIsRpcConnected(false);
-      }
-      
       setClient(newClient);
+
+      // Try to "ping" the network with a more robust check
+      const checkConnectivity = async () => {
+        try {
+          // Method 1: Try getChainId via the client (direct)
+          await newClient.getChainId();
+          return true;
+        } catch (rpcErr) {
+          console.warn('RPC getChainId failed, trying server-side proxy...', rpcErr);
+          try {
+            // Method 2: Use our server-side proxy to bypass browser CORS
+            const response = await fetch('/api/ping-rpc', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ rpcUrl: targetRpc })
+            });
+            const data = await response.json();
+            return !!data.ok;
+          } catch (proxyErr) {
+            console.error('RPC proxy fallback failed:', proxyErr);
+            return false;
+          }
+        }
+      };
+
+      const connected = await checkConnectivity();
+      setIsRpcConnected(connected);
     } catch (err) {
       console.error('Failed to init GenLayer client', err);
       setError('Could not initialize GenLayer client. Check your settings.');
@@ -164,22 +178,37 @@ export default function App() {
 
     setScanStep('AI Vision: Reading image content...');
     try {
-      const prompt = "Analyze this image and provide a detailed description of any text, logos, UI elements, or suspicious signs (like poor design, phishing attempts, suspicious wallet addresses, or fake looking buttons). Focus on details relevant to scam detection. If there is a website or social media post in the image, describe its content accurately.";
+      // Create form data for image upload
+      const formData = new FormData();
+      formData.append('prompt', "Analyze this image and provide a detailed description of any text, logos, UI elements, or suspicious signs (like poor design, phishing attempts, suspicious wallet addresses, or fake looking buttons). Focus on details relevant to scam detection. If there is a website or social media post in the image, describe its content accurately.");
+      formData.append('type', 'image');
       
-      const response = await ai.models.generateContent({
-        model: "gemini-3-flash-preview",
-        contents: {
-          parts: [
-            { inlineData: { data: imageData.base64, mimeType: imageData.mimeType } },
-            { text: prompt }
-          ]
-        }
+      // Convert base64 to Blob
+      const byteCharacters = atob(imageData.base64);
+      const byteNumbers = new Array(byteCharacters.length);
+      for (let i = 0; i < byteCharacters.length; i++) {
+        byteNumbers[i] = byteCharacters.charCodeAt(i);
+      }
+      const byteArray = new Uint8Array(byteNumbers);
+      const blob = new Blob([byteArray], { type: imageData.mimeType });
+      
+      formData.append('image', blob, 'upload.png');
+
+      const response = await fetch('/api/analyze', {
+        method: 'POST',
+        body: formData,
       });
 
-      return response.text || inputDescription;
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.error || 'Failed to analyze image');
+      }
+
+      const data = await response.json();
+      return data.text || inputDescription;
     } catch (err) {
       console.error('AI Image Analysis error:', err);
-      throw new Error('Failed to analyze image with AI. Please check your internet connection and trying again.');
+      throw new Error('Failed to analyze image with AI. Please ensure your backend server is running.');
     }
   };
 
@@ -249,9 +278,9 @@ export default function App() {
       let errorMessage = err.message || 'An unexpected error occurred during the scan.';
       
       if (errorMessage.includes('GenVM internal error')) {
-        errorMessage = 'GenVM Execution Error: The contract crashed during execution. This usually happens if the address is wrong, or there is a Python error in your contract. Check your localnet terminal logs for the full traceback.';
-      } else if (errorMessage.includes('Failed to fetch')) {
-        errorMessage = 'Node Unreachable: Could not connect to GenLayer. Check your RPC URL and ensure the simulator is running with --cors "*".';
+        errorMessage = 'GenVM Execution Error: The contract crashed during execution. This usually happens if the address is wrong, or the contract is not deployed on this network.';
+      } else if (errorMessage.includes('Failed to fetch') || errorMessage.includes('Network Error')) {
+        errorMessage = `Node Unreachable: Could not connect to GenLayer at ${rpcUrl}. If using localnet, ensure it is running with --cors "*". If using testnet, check your internet connection.`;
       }
       
       setError(errorMessage);
@@ -397,7 +426,7 @@ export default function App() {
                   </p>
                 </div>
 
-                <div className="pt-4">
+                <div className="pt-4 space-y-4">
                   <button 
                     onClick={() => {
                       initClient(rpcUrl, contractAddress);
@@ -410,6 +439,24 @@ export default function App() {
                     <RefreshCw className="w-4 h-4" />
                     <span className="uppercase tracking-widest text-[11px]">Save & Reconnect</span>
                   </button>
+
+                  <div className="p-4 bg-blue-50 border border-blue-100 rounded-2xl">
+                    <div className="flex items-start gap-3">
+                      <Info className="w-4 h-4 text-blue-500 mt-0.5" />
+                      <div className="space-y-1">
+                        <p className="text-[10px] font-bold text-blue-700 uppercase tracking-tight">AI Studio Tip</p>
+                        <p className="text-[10px] text-blue-600 leading-relaxed font-medium">
+                          To save Environment Variables permanently in AI Studio:
+                        </p>
+                        <ul className="text-[9px] text-blue-500 list-disc list-inside space-y-0.5">
+                          <li>Click <span className="font-bold">Settings</span> (bottom left)</li>
+                          <li>Open <span className="font-bold">Environment Variables</span></li>
+                          <li>Enter Key & Value, click <span className="font-bold">Add</span></li>
+                          <li>Click <span className="font-bold">Save</span> on the dialog</li>
+                        </ul>
+                      </div>
+                    </div>
+                  </div>
                 </div>
               </div>
             </motion.div>

@@ -18,8 +18,10 @@ export default defineConfig(({mode}) => {
         },
       }),
     ],
+    build: {
+      target: 'esnext',
+    },
     define: {
-      'process.env.GEMINI_API_KEY': JSON.stringify(env.GEMINI_API_KEY),
       global: 'window.__app_global',
     },
     resolve: {
