@@ -13,7 +13,9 @@
   },
   "dependencies": {
     "@google/genai": "^1.51.0",
+    "@google/generative-ai": "^0.24.1",
     "@tailwindcss/vite": "^4.1.14",
+    "@types/multer": "^2.1.0",
     "@vitejs/plugin-react": "^5.0.4",
     "buffer": "^6.0.3",
     "cors": "^2.8.6",

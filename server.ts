@@ -1,14 +1,18 @@
-import express from "express";
+import express, { Request, Response } from "express";
 import { createServer as createViteServer } from "vite";
 import path from "path";
-import { GoogleGenAI } from "@google/genai";
+import { GoogleGenerativeAI } from "@google/generative-ai";
 import multer from "multer";
 import cors from "cors";
 
+// Extend Request type to include multer's file property
+interface MulterRequest extends Request {
+  file?: Express.Multer.File;
+}
+
 // Initialize Gemini
-// In production (Vercel), this will be read from Vercel's environment variables
 const apiKey = process.env.GEMINI_API_KEY;
-const genAI = apiKey ? new GoogleGenAI(apiKey) : null;
+const genAI = apiKey ? new GoogleGenerativeAI(apiKey) : null;
 
 const app = express();
 
@@ -19,12 +23,12 @@ app.use(express.json({ limit: '10mb' }));
 const upload = multer({ storage: multer.memoryStorage() });
 
 // Health check
-app.get("/api/health", (req, res) => {
+app.get("/api/health", (req: Request, res: Response) => {
   res.json({ status: "ok", aiConfigured: !!apiKey });
 });
 
 // AI Analysis API
-app.post("/api/analyze", upload.single('image'), async (req, res) => {
+app.post("/api/analyze", upload.single('image'), async (req: MulterRequest, res: Response) => {
   try {
     if (!genAI) {
       return res.status(500).json({ error: "Gemini API key is not configured on the server." });
